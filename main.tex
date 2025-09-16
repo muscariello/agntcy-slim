@@ -1,5 +1,4 @@
 % AGNTCY SLIM paper main LaTeX source (arXiv submission format)
-% NOTE: This file is an original synthesis based on public draft specifications; wording intentionally paraphrased.
 \documentclass{article}
 \usepackage{PRIMEarxiv}
 
@@ -91,10 +90,10 @@ We present \gls{slim}, a messaging protocol conceived for real-time, secure, man
 
 % 1. Introduction
 \section{Introduction}\label{sec:intro}
-Multi-agent AI systems increasingly perform time-sensitive coordination, tool invocation, collaborative reasoning, and continuous streaming of partial results (e.g., token generation, sensor fusion). Current messaging infrastructures each address subsets of these requirements but fall short when combining: (i) low tail latency under concurrency, (ii) cryptographic group guarantees across trust boundaries, (iii) hierarchical multi-tenant naming with aggregatable routing, and (iv) seamless bidirectional streaming plus request/response within a unified abstraction. \gls{slim} is designed as a convergence layer to reconcile these dimensions while reusing widely deployed transport primitives (gRPC, \HTTP{}).
+Multi-agent AI systems increasingly perform time-sensitive coordination, tool invocation, collaborative reasoning, and continuous streaming of partial results (e.g., token generation, sensor fusion). Current messaging infrastructures each address subsets of these requirements but fall short when combining: (i) low tail latency under concurrency, (ii) cryptographic group guarantees across trust boundaries \citep{rfc9420,rfc9750}, (iii) hierarchical multi-tenant naming with aggregatable routing \citep{rfc6920,didcore}, and (iv) seamless bidirectional streaming plus request/response within a unified abstraction leveraging widely deployed transports (gRPC \citep{grpc}, HTTP/2 \citep{http2}). \gls{slim} is designed as a convergence layer to reconcile these dimensions while reusing existing operational ecosystems.
 
 \subsection{Contributions}
-This paper contributes: (1) a cohesive architectural decomposition of \gls{slim}; (2) a formalized hierarchical naming and channel moderation model leveraging \gls{did}-based identifiers; (3) an analysis of the reliability and streaming semantics over a multiplexed secure transport; (4) security and threat modeling grounded in \gls{mls} properties (forward secrecy, post-compromise recovery); (5) comparative positioning vs established protocols; (6) an evaluation blueprint for future empirical study.
+This paper contributes: (1) a cohesive architectural decomposition of \gls{slim}; (2) a formalized hierarchical naming and channel moderation model leveraging \gls{did}-based identifiers \citep{didcore,didmethods,didkey}; (3) an analysis of the reliability and streaming semantics over a multiplexed secure transport; (4) security and threat modeling grounded in \gls{mls} properties (forward secrecy, post-compromise recovery) \citep{rfc9420,rfc9750}; (5) comparative positioning vs established protocols (AMQP \citep{amqp10}, MQTT \citep{mqtt311}, NATS \citep{nats}, Kafka \citep{kafka}, ActivityPub \citep{activitypub}, Matrix \citep{matrixspec}, XMPP \citep{xmpp-core}, Nostr \citep{nostr}); (6) an evaluation blueprint for future empirical study.
 
 % 2. Motivation and Problem Statement
 \section{Motivation and Problem Statement}\label{sec:motivation}
@@ -102,7 +101,7 @@ We summarize workload drivers: token-level streaming, dynamic membership churn, 
 
 % 3. Design Goals
 \section{Design Goals}\label{sec:goals}
-We enumerate core goals: low-latency multiplexing; strong end-to-end and group confidentiality/integrity; efficient membership operations; globally unique aggregatable naming; reuse of HTTP/gRPC operational tooling; reliability spectrum (fire-and-forget through exactly-once); decentralized and federated identity support; optional broker plus peer-to-peer adaptability; observability alignment.
+We enumerate core goals: low-latency multiplexing; strong end-to-end and group confidentiality/integrity (MLS \citep{rfc9420}); efficient membership operations; globally unique aggregatable naming (hash/content-derived identifiers \citep{rfc6920}); reuse of HTTP/gRPC operational tooling (\citep{grpc,http2}); reliability spectrum (fire-and-forget through exactly-once); decentralized and federated identity support (DID ecosystem \citep{didcore,didmethods}); optional broker plus peer-to-peer adaptability; observability alignment. Normative requirement keywords follow \citep{rfc2119,rfc8174}.
 
 % 4. Architecture Overview
 \section{Architecture Overview}\label{sec:architecture}
@@ -154,9 +153,9 @@ SLIM adopts hierarchical names rather than opaque UUID topics to enable (1) rout
 % 5. Naming and Routing Model
 \section{Naming and Routing Model}\label{sec:naming}
 \subsection{Identifier Classes}
-Three principal identifier sets exist: (1) \emph{node identifiers} (onboarding / mutual authentication), (2) \emph{client locators} (agent endpoints), and (3) \emph{channel names} (MLS group scope + routing handle). Nodes require uniqueness but not aggregation; channels require both uniqueness \emph{and} aggregatable structure.
+Three principal identifier sets exist: (1) \emph{node identifiers} (onboarding / mutual authentication), (2) \emph{client locators} (agent endpoints), and (3) \emph{channel names} (MLS group scope + routing handle). Nodes require uniqueness but not aggregation; channels require both uniqueness \emph{and} aggregatable structure (content-hash / DID binding \citep{rfc6920,didcore}).
 \subsection{Channel Schema}
-Canonical form (illustrative):
+Canonical form (illustrative) \citep{didcore,didkey}:
 \begin{center}\ttfamily did:key:ORG/namespace/service/did:key:moderatorHash\end{center}
 The trailing moderator DID binds the channel to a controlling principal authorized to stage membership changes. Prefixes up to `service` define aggregation boundaries for subscription compression.
 \subsection{Client Locator Schema}
@@ -164,12 +163,12 @@ Similar structure substitutes the moderator DID with the client DID, allowing di
 \subsection{Aggregation and FIB Entries}
 Nodes populate forwarding information base (FIB) entries for each active name prefix in which they have either (a) a downstream subscriber or (b) a peer advertising further sub-prefix reachability. Aggregation merges adjacent subtrees when next-hop sets are identical and policy tags align.
 \subsection{Security Side Effects}
-Name---key binding thwarts impersonation; DID resolution (e.g., via `did:web` or `did:key`) offers verifiability without relying on centralized PKI trust anchors. Collision resistance relies on the underlying cryptographic hash domain of the DID method; compromise would require second preimage for a published moderator key.
+Name---key binding thwarts impersonation; DID resolution (e.g., via `did:web` or `did:key`) offers verifiability without relying on centralized PKI trust anchors \citep{didweb,didkey}. Collision resistance relies on the underlying cryptographic hash domain of the DID method; compromise would require second preimage for a published moderator key.
 
 % 6. Protocol Operations
 \section{Protocol Operations}\label{sec:operations}
 \subsection{Group Lifecycle}
-	extbf{Create:} Moderator generates initial MLS group, advertises channel name; control plane optionally records metadata (policy tags). \textbf{Join:} Candidate presents credential; moderator (or delegated policy agent) issues MLS add commit disseminated via nodes. \textbf{Leave / Eject:} Removal triggers MLS update commit; nodes immediately drop cached state associated with the expelled member identity. \textbf{Epoch Advancement:} Every membership or key schedule change increments group epoch, enabling out-of-order delivery detection.
+  	extbf{Create:} Moderator generates initial MLS group, advertises channel name; control plane optionally records metadata (policy tags). \textbf{Join:} Candidate presents credential; moderator (or delegated policy agent) issues MLS add commit disseminated via nodes (per \citep{rfc9420,rfc9750}). \textbf{Leave / Eject:} Removal triggers MLS update commit; nodes immediately drop cached state associated with the expelled member identity. \textbf{Epoch Advancement:} Every membership or key schedule change increments group epoch, enabling out-of-order delivery detection.
 \subsection{Publish Flow}
 1) Application serializes payload (e.g., Protocol Buffers). 2) Session layer wraps with per-message metadata (channel ID, reliability mode, correlation ID). 3) MLS encrypts producing ciphertext + auth tag. 4) Node ingress performs prefix lookup -> forwarding set. 5) Egress nodes deliver to local subscribers or propagate further. No intermediate can decrypt.
 \subsection{Subscribe / Resubscribe}
@@ -208,11 +207,11 @@ Combines (a) consumer acknowledgment pacing, (b) dynamic window scaling, and (c)
 \section{Security and Trust Model}\label{sec:security}
 Security properties derive from layered mechanisms: OAuth-based authentication conveying MLS credentials, hierarchical naming semantics enforcing scope, and MLS group cryptography ensuring confidentiality and integrity.
 \subsection{Identity and Authentication}
-Agents obtain bearer tokens from an authorization service which embeds (or references) MLS credentials and proofs of possession. Nodes validate token signatures, check revocation lists, and extract allowed namespace prefixes. DID documents anchor public keys enabling decentralized validation without exclusive dependence on centralized certificate authorities.
+Agents obtain bearer tokens from an authorization service which embeds (or references) MLS credentials and proofs of possession (group semantics per \citep{rfc9420}). Nodes validate token signatures, check revocation lists, and extract allowed namespace prefixes. DID documents anchor public keys enabling decentralized validation without exclusive dependence on centralized certificate authorities (\citep{didcore,didmethods}).
 \subsection{Authorization}
 Policy rules combine prefix patterns with role attributes (e.g., moderator, observer, contributor). Evaluation occurs before subscription installation or message acceptance. Moderators possess extended capability to propose membership changes but not to bypass namespace policies.
 \subsection{Confidentiality, Integrity, and Forward Secrecy}
-MLS provides a ratcheting key schedule; each commit advances secrets so that compromise of a current state does not reveal prior plaintext (forward secrecy) and subsequent post-compromise epochs restore confidentiality (PCS). All application data (including correlation identifiers) resides within the authenticated envelope, limiting traffic analysis to size/timing only.
+MLS provides a ratcheting key schedule \citep{rfc9420}; each commit advances secrets so that compromise of a current state does not reveal prior plaintext (forward secrecy) and subsequent post-compromise epochs restore confidentiality (PCS) \citep{rfc9750}. All application data (including correlation identifiers) resides within the authenticated envelope, limiting traffic analysis to size/timing only.
 \subsection{Revocation and Ejection}
 Revoking a token halts future connection refresh; issuing an MLS removal commit invalidates the expelled member's ability to derive next epoch secrets. Immediate effect is bounded by propagation delay of the commit across nodes.
 \subsection{Quantum-Safe Considerations}
@@ -223,9 +222,9 @@ Future MLS suites integrating post-quantum KEMs can be adopted with minimal appl
 % 9. Performance and Scalability
 \section{Performance and Scalability}\label{sec:performance}
 \subsection{Latency Decomposition}
-Total one-way latency: \( T = T_{net} + T_{ser} + T_{crypto} + T_{queue} + T_{sched} \). SLIM minimizes \(T_{ser}\) via compact binary encoding and reduces \(T_{queue}\) by eschewing disk persistence on the critical path. \(T_{crypto}\) is bounded by MLS AEAD + per-message nonce computation.
+Total one-way latency: \( T = T_{net} + T_{ser} + T_{crypto} + T_{queue} + T_{sched} \). SLIM minimizes \(T_{ser}\) via compact binary encoding (gRPC framing \citep{grpc}) and reduces \(T_{queue}\) by eschewing disk persistence on the critical path. \(T_{crypto}\) is bounded by MLS AEAD + per-message nonce computation \citep{rfc9420}.
 \subsection{Connection Multiplexing Efficiency}
-Multiple logical streams share a single transport connection, eliminating repeated TLS handshakes and head-of-line blocking effects observed when separate connections are used for each agent pairing.
+Multiple logical streams share a single transport connection (HTTP/2 multiplexing \citep{http2}), eliminating repeated TLS handshakes and head-of-line blocking effects observed when separate connections are used for each agent pairing; prospective QUIC migration \citep{quic} offers further transport evolution.
 \subsection{Subscription Aggregation Impact}
 Empirical expectation (future evaluation): compression ratio improves with namespace depth; in synthetic hierarchies with branching factor \(b\) and depth \(d\), aggregated entries approach \(\mathcal{O}(b \cdot d)\) versus \(\mathcal{O}(b^d)\) naive enumeration.
 \subsection{Membership Churn Cost}
@@ -239,17 +238,17 @@ Acked-unreliable mode supplies feedback signals without incurring full reliable 
 \section{Interoperability and Ecosystem Positioning}\label{sec:comparison}
 We position SLIM along axes: security depth (transport vs message), group dynamism, latency under concurrency, naming expressiveness, operational footprint, and streaming versatility.
 \subsection{AMQP / AMQP over WebSockets}
-Rich routing and durability but higher protocol verbosity and reliance on broker trust for message confidentiality (unless extended). Group membership cryptography is external; WebSockets variant adds framing overhead for browser reach.
+Rich routing and durability but higher protocol verbosity and reliance on broker trust for message confidentiality (unless extended) \citep{amqp10}. Group membership cryptography is external; WebSockets variant adds framing overhead for browser reach.
 \subsection{MQTT}
-Ultra-lightweight and ideal for constrained edge scenarios; lacks native end-to-end group encryption and advanced membership semantics; topic wildcards support simple subscription patterns but limited hierarchical policy richness.
+Ultra-lightweight and ideal for constrained edge scenarios \citep{mqtt311}; lacks native end-to-end group encryption and advanced membership semantics; topic wildcards support simple subscription patterns but limited hierarchical policy richness.
 \subsection{NATS}
-Low-latency core with flexible patterns (pub/sub, request/reply); message security remains transport-scoped; JetStream adds durability at complexity cost. Subject naming is flat relative to SLIM's structured DID-infused hierarchy.
+Low-latency core with flexible patterns (pub/sub, request/reply) \citep{nats}; message security remains transport-scoped; JetStream adds durability at complexity cost. Subject naming is flat relative to SLIM's structured DID-infused hierarchy.
 \subsection{Kafka}
-Excels at sustained high-throughput and replay; inherent log design introduces additional commit / fetch latency for ultra-interactive exchanges; group cryptography must be layered separately; topic partition model focuses on scalability over fine-grained membership agility.
+Excels at sustained high-throughput and replay \citep{kafka}; inherent log design introduces additional commit / fetch latency for ultra-interactive exchanges; group cryptography must be layered separately; topic partition model focuses on scalability over fine-grained membership agility.
 \subsection{Emerging / Social Protocols}
-ActivityPub, Matrix, XMPP, Nostr provide federation or social graph features; they typically prioritize message persistence or social semantics over low-tail-latency group cryptography optimized for high-frequency agent coordination.
+ActivityPub \citep{activitypub}, Matrix \citep{matrixspec}, XMPP \citep{xmpp-core}, Nostr \citep{nostr} provide federation or social graph features; they typically prioritize message persistence or social semantics over low-tail-latency group cryptography optimized for high-frequency agent coordination.
 \subsection{Summary}
-SLIM's differentiator is the \emph{combination} of (a) hierarchical cryptographically bound naming, (b) integrated MLS for dynamic secure groups, and (c) transport reuse with efficient multiplexed streaming—rather than peak performance in a single axis (e.g., Kafka throughput) or minimal footprint (e.g., MQTT simplicity).
+SLIM's differentiator is the \emph{combination} of (a) hierarchical cryptographically bound naming (\citep{rfc6920,didcore}), (b) integrated MLS for dynamic secure groups (\citep{rfc9420,rfc9750}), and (c) transport reuse with efficient multiplexed streaming (\citep{grpc,http2})—rather than peak performance in a single axis (e.g., Kafka throughput \citep{kafka}) or minimal footprint (e.g., MQTT simplicity \citep{mqtt311}).
 
 % 11. Reference Implementation and Tooling
 \section{Reference Implementation and Tooling}\label{sec:implementation}
