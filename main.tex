@@ -1,27 +1,19 @@
-% AGNTCY SLIM paper main LaTeX source (arXiv submission format)
 \documentclass{article}
 \usepackage{PRIMEarxiv}
-
-% Encoding and typography
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage{microtype}
 \usepackage{lmodern}
 \usepackage{inconsolata} % mono font
-
-% Math & symbols
 \usepackage{amsmath, amssymb, amsthm}
 \usepackage{mathtools}
 \usepackage{bm}
-
-% Graphics & figures
 \usepackage{graphicx}
 \usepackage{subcaption}
 \usepackage{float}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta, positioning, calc, fit, shapes, backgrounds}
 
-% Tables
 \usepackage{booktabs}
 \usepackage{multirow}
 \usepackage{tabularx}
@@ -29,16 +21,12 @@
 \usepackage{threeparttable}
 \usepackage{makecell}
 
-% References & hyperlinks
 \usepackage{hyperref}
 \hypersetup{colorlinks=true, linkcolor=blue, citecolor=teal, urlcolor=magenta}
 \usepackage[nameinlink,capitalize]{cleveref}
-
-% Lists
 \usepackage{enumitem}
 \setlist{nosep}
 
-% Code listings (placeholder; can swap for minted if shell access)
 \usepackage{listings}
 \lstset{basicstyle=\ttfamily\small,breaklines=true,frame=single}
 
@@ -95,16 +83,49 @@
 \begin{document}
 \maketitle
 \begin{abstract}
-We present \gls{slim}, a messaging protocol conceived for real-time, secure, many-to-many interaction among autonomous and human-assisted AI agents. Built atop gRPC over \HTTP{} and group cryptography via \gls{mls}, \gls{slim} integrates hierarchical routable naming, end-to-end protected streaming, and dynamic membership management. The protocol addresses gaps in existing messaging systems (enterprise queuing, IoT pub/sub, cloud-native buses, and log-centric streaming) by combining low-latency multiplexed transport with cryptographic group semantics offering forward secrecy, post-compromise security, and quantum-safe readiness. We articulate the architectural model (nodes, control plane, session layer), naming and routing scheme, reliability spectrum, and security properties, and position \gls{slim} relative to AMQP, MQTT, NATS, Kafka, and WebSocket-tunneled variants. We outline an evaluation methodology and a roadmap toward broader ecosystem interoperability and optional persistence extensions.
+We present \gls{slim}, a messaging protocol conceived for real-time, secure,
+many-to-many interaction among autonomous and human-assisted AI agents. Built
+atop gRPC over \HTTP{} and group cryptography via \gls{mls}, \gls{slim}
+integrates hierarchical routable naming, end-to-end protected streaming, and
+dynamic membership management. The protocol addresses gaps in existing
+messaging systems (enterprise queuing, IoT pub/sub, cloud-native buses, and
+log-centric streaming) by combining low-latency multiplexed transport with
+cryptographic group semantics offering forward secrecy, post-compromise
+security, and quantum-safe readiness. We articulate the architectural model
+(nodes, control plane, session layer), naming and routing scheme, reliability
+spectrum, and security properties, and position \gls{slim} relative to AMQP,
+MQTT, NATS, Kafka, and WebSocket-tunneled variants. We outline an evaluation
+methodology and a roadmap toward broader ecosystem interoperability and
+optional persistence extensions.
 \end{abstract}
 
 
 % 1. Introduction
 \section{Introduction}\label{sec:intro}
-Multi-agent AI systems increasingly perform time-sensitive coordination, tool invocation, collaborative reasoning, and continuous streaming of partial results (e.g., token generation, sensor fusion). Current messaging infrastructures each address subsets of these requirements but fall short when combining: (i) low tail latency under concurrency, (ii) cryptographic group guarantees across trust boundaries \citep{rfc9420,rfc9750}, (iii) hierarchical multi-tenant naming with aggregatable routing \citep{rfc6920,didcore}, and (iv) seamless bidirectional streaming plus request/response within a unified abstraction leveraging widely deployed transports (gRPC \citep{grpc}, HTTP/2 \citep{http2}). \gls{slim} is designed as a convergence layer to reconcile these dimensions while reusing existing operational ecosystems.
+Multi-agent AI systems increasingly perform time-sensitive coordination, tool
+invocation, collaborative reasoning, and continuous streaming of partial
+results (e.g., token generation, sensor fusion). Current messaging
+infrastructures each address subsets of these requirements but fall short when
+combining: (i) low tail latency under concurrency, (ii) cryptographic group
+guarantees across trust boundaries \citep{rfc9420,rfc9750}, (iii) hierarchical
+multi-tenant naming with aggregatable routing \citep{rfc6920,didcore}, and
+(iv) seamless bidirectional streaming plus request/response within a unified
+abstraction leveraging widely deployed transports (gRPC \citep{grpc}, HTTP/2
+\citep{http2}). \gls{slim} is designed as a convergence layer to reconcile
+these dimensions while reusing existing operational ecosystems.
 
 \subsection{Contributions}
-This paper contributes: (1) a cohesive architectural decomposition of \gls{slim}; (2) a formalized hierarchical naming and channel moderation model leveraging \gls{did}-based identifiers \citep{didcore,didmethods,didkey}; (3) an analysis of the reliability and streaming semantics over a multiplexed secure transport; (4) security and threat modeling grounded in \gls{mls} properties (forward secrecy, post-compromise recovery) \citep{rfc9420,rfc9750}; (5) comparative positioning vs established protocols (AMQP \citep{amqp10}, MQTT \citep{mqtt311}, NATS \citep{nats}, Kafka \citep{kafka}, ActivityPub \citep{activitypub}, Matrix \citep{matrixspec}, XMPP \citep{xmpp-core}, Nostr \citep{nostr}); (6) an evaluation blueprint for future empirical study.
+This paper contributes: (1) a cohesive architectural decomposition of
+\gls{slim}; (2) a formalized hierarchical naming and channel moderation model
+leveraging \gls{did}-based identifiers \citep{didcore,didmethods,didkey}; (3)
+an analysis of the reliability and streaming semantics over a multiplexed
+secure transport; (4) security and threat modeling grounded in \gls{mls}
+properties (forward secrecy, post-compromise recovery)
+\citep{rfc9420,rfc9750}; (5) comparative positioning vs established protocols
+(AMQP \citep{amqp10}, MQTT \citep{mqtt311}, NATS \citep{nats}, Kafka
+\citep{kafka}, ActivityPub \citep{activitypub}, Matrix \citep{matrixspec},
+XMPP \citep{xmpp-core}, Nostr \citep{nostr}); (6) an evaluation blueprint for
+future empirical study.
 
 % 2. Motivation and Problem Statement
 \section{Motivation and Problem Statement}\label{sec:motivation}
@@ -179,7 +200,12 @@ Name---key binding thwarts impersonation; DID resolution (e.g., via `did:web` or
 % 6. Protocol Operations
 \section{Protocol Operations}\label{sec:operations}
 \subsection{Group Lifecycle}
-  	extbf{Create:} Moderator generates initial MLS group, advertises channel name; control plane optionally records metadata (policy tags). \textbf{Join:} Candidate presents credential; moderator (or delegated policy agent) issues MLS add commit disseminated via nodes (per \citep{rfc9420,rfc9750}). \textbf{Leave / Eject:} Removal triggers MLS update commit; nodes immediately drop cached state associated with the expelled member identity. \textbf{Epoch Advancement:} Every membership or key schedule change increments group epoch, enabling out-of-order delivery detection.
+  	extbf{Create:} Moderator generates initial MLS group, advertises channel name; control plane optionally
+  records metadata (policy tags). \textbf{Join:} Candidate presents credential; moderator (or delegated policy
+  agent) issues MLS add commit disseminated via nodes (per \citep{rfc9420,rfc9750}). \textbf{Leave / Eject:}
+  Removal triggers MLS update commit; nodes immediately drop cached state associated with the expelled member
+  identity. \textbf{Epoch Advancement:} Every membership or key schedule change increments group epoch, enabling
+  out-of-order delivery detection.
 \subsection{Publish Flow}
 1) Application serializes payload (e.g., Protocol Buffers). 2) Session layer wraps with per-message metadata (channel ID, reliability mode, correlation ID). 3) MLS encrypts producing ciphertext + auth tag. 4) Node ingress performs prefix lookup -> forwarding set. 5) Egress nodes deliver to local subscribers or propagate further. No intermediate can decrypt.
 \subsection{Subscribe / Resubscribe}
