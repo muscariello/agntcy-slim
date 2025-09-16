@@ -88,7 +88,6 @@
 We present \gls{slim}, a messaging protocol conceived for real-time, secure, many-to-many interaction among autonomous and human-assisted AI agents. Built atop gRPC over \HTTP{} and group cryptography via \gls{mls}, \gls{slim} integrates hierarchical routable naming, end-to-end protected streaming, and dynamic membership management. The protocol addresses gaps in existing messaging systems (enterprise queuing, IoT pub/sub, cloud-native buses, and log-centric streaming) by combining low-latency multiplexed transport with cryptographic group semantics offering forward secrecy, post-compromise security, and quantum-safe readiness. We articulate the architectural model (nodes, control plane, session layer), naming and routing scheme, reliability spectrum, and security properties, and position \gls{slim} relative to AMQP, MQTT, NATS, Kafka, and WebSocket-tunneled variants. We outline an evaluation methodology and a roadmap toward broader ecosystem interoperability and optional persistence extensions.
 \end{abstract}
 
-\tableofcontents
 
 % 1. Introduction
 \section{Introduction}\label{sec:intro}
